@@ -8,7 +8,11 @@
 class Map
 {
 public:
+<<<<<<< HEAD
   Map(std::string const &map_file);
+=======
+  Map(std::string const &mapFile);
+>>>>>>> bd4584b0c57c816cbbf2935bdae7abc64a7e7485
   size_t closestWaypoint(Point const &p) const;
   size_t nextWaypoint(Point const &p, double theta) const;
   FrenetPoint toFrenet(Point const &p, double theta) const;

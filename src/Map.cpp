@@ -9,6 +9,7 @@ Map::Map(std::string const &mapFile)
 	loadMap(mapFile);
 }
 
+<<<<<<< HEAD
 void Map::loadMap(std::string const &map_file)
 {
 	std::ifstream in_map(map_file.c_str(), std::ifstream::in);
@@ -16,6 +17,11 @@ void Map::loadMap(std::string const &map_file)
 	{
 		throw std::runtime_error("map file " + map_file + " does not exist");
 	}
+=======
+void Map::loadMap(std::string const &mapFile)
+{
+	std::ifstream in_map(mapFile.c_str(), std::ifstream::in);
+>>>>>>> bd4584b0c57c816cbbf2935bdae7abc64a7e7485
 
 	std::string line;
 	while (getline(in_map, line))
