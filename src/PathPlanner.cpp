@@ -1,20 +1,15 @@
 #include "PathPlanner.h"
 
-<<<<<<< HEAD
 #include "Eigen-3.3/Eigen/Geometry"
 #include "utils.hpp"
 #include "spline.h"
 
-=======
-#include "utils.hpp"
->>>>>>> bd4584b0c57c816cbbf2935bdae7abc64a7e7485
 #include <cmath>
 
 PathPlanner::PathPlanner(Map const &map) : _map(map)
 {
 }
 
-<<<<<<< HEAD
 Path PathPlanner::plan(CarState const &cs, Path const &previous_path, FrenetPoint end_point_frenet, Obstacles const &obstacles)
 {
     static double const SECONDS_PER_SAMPLING = 0.02;
@@ -100,18 +95,6 @@ Path PathPlanner::plan(CarState const &cs, Path const &previous_path, FrenetPoin
         // switch back to map-centered reference frame
         p = vehicle_map_transform * p;
         path.push_back(p);
-=======
-Path PathPlanner::plan(CarState const &cs, Path const &previsous_path, FrenetPoint end_point_frenet, Obstacles const &obstacles)
-{
-    Path path;
-
-    double dist_inc = 0.5;
-    for (size_t i = 0; i < 50; i++)
-    {
-        path.emplace_back(
-            cs.position[0] + (dist_inc * i) * cos(cs.yaw),
-            cs.position[1] + (dist_inc * i) * sin(cs.yaw));
->>>>>>> bd4584b0c57c816cbbf2935bdae7abc64a7e7485
     }
 
     return path;
