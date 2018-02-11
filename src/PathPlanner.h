@@ -8,8 +8,7 @@
 
 struct CarState
 {
-    CarState(Point p, double yaw, FrenetPoint fp, double v)
-        : position(p), yaw(yaw), position_frenet(fp), speed(v){};
+    CarState(Point p, double yaw, FrenetPoint fp, double v) : position(p), yaw(yaw), position_frenet(fp), speed(v){};
     Point position;
     FrenetPoint position_frenet;
     double yaw;
@@ -20,7 +19,7 @@ class PathPlanner
 {
   public:
     PathPlanner(Map const &map);
-    Path plan(CarState const &cs, Path const &previsous_path, FrenetPoint end_point_frenet, Obstacles const & obstacles);
+    Path plan(CarState const &cs, Path const &previous_path, FrenetPoint end_point_frenet, Obstacles const &obstacles);
 
   protected:
     Map const &_map;

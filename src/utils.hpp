@@ -15,6 +15,7 @@ struct Path : public std::vector<Point>
 
     Path(std::vector<double> const &x_components, std::vector<double> const &y_components) : std::vector<Point>(x_components.size())
     {
+        assert(x_components.size() == y_components.size());
         for (size_t i = 0; i < x_components.size(); i++)
         {
             (*this)[i] = Point(x_components[i], y_components[i]);

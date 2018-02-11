@@ -31,9 +31,7 @@ int main()
 {
   uWS::Hub h;
 
-  // Waypoint map to read from
-  std::string const map_file = "../data/highway_map.csv";
-  Map map(map_file);
+  Map map("../data/highway_map.csv");
   PathPlanner pp(map);
 
   h.onMessage([&pp](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
