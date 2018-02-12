@@ -14,6 +14,9 @@ public:
   FrenetPoint toFrenet(Point const &p, double theta) const;
   Point toCartesian(FrenetPoint fp) const;
 
+  static double constexpr LANE_WIDTH{4.};
+  static double constexpr LANE_WIDTH_HALF{LANE_WIDTH / 2.};
+
 protected:
   void loadMap(std::string const &mapFile);
 
