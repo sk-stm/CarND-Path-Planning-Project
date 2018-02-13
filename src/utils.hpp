@@ -1,8 +1,12 @@
 #pragma once
 
 #include "Eigen-3.3/Eigen/Core"
+#include "spdlog/spdlog.h"
+
 #include <cmath>
 #include <vector>
+
+#define LOGGER spdlog::get("console")
 
 using Point = Eigen::Vector2d;
 using Obstacles = std::vector<std::vector<double>>;

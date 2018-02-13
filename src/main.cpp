@@ -1,9 +1,11 @@
+#include "Behavior.h"
+#include "Map.h"
+
+#include "json.hpp"
+#include "spdlog/spdlog.h"
+
 #include <uWS/uWS.h>
 #include <vector>
-#include "json.hpp"
-
-#include "PathPlanner.h"
-#include "Map.h"
 
 // for convenience
 using json = nlohmann::json;
@@ -29,13 +31,17 @@ std::string hasData(std::string s)
 
 int main()
 {
+  // init logger
+  auto console = spdlog::stdout_color_mt("console");
+  spdlog::set_level(spdlog::level::debug);
+
   uWS::Hub h;
 
   Map map("../data/highway_map.csv");
-  PathPlanner pp(map);
+  Behavior behavior(map);
 
-  h.onMessage([&pp](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-                    uWS::OpCode opCode) {
+  h.onMessage([&behavior](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+                          uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -78,7 +84,7 @@ int main()
 
           Path previous_path(previous_path_x, previous_path_y);
           CarState cs(Point(car_x, car_y), deg2rad(car_yaw), FrenetPoint(car_s, car_d), car_speed);
-          Path new_path = pp.plan(cs, previous_path, FrenetPoint(end_path_s, end_path_d), sensor_fusion);
+          Path new_path = behavior.plan(cs, previous_path, FrenetPoint(end_path_s, end_path_d), sensor_fusion);
 
           // convert the path back and send it
           std::vector<double> next_x_vals;

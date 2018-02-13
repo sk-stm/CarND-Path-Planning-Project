@@ -4,15 +4,18 @@
 #include <fstream>
 #include <sstream>
 
-Map::Map(std::string const &mapFile)
+Map::Map(std::string const &map_file, double max_s, Point map_center)
+	: _max_s(max_s), _map_center(map_center)
 {
-	loadMap(mapFile);
+	loadMap(map_file);
 }
 
 void Map::loadMap(std::string const &map_file)
 {
+	LOGGER->info("Loading map from '{}' ..", map_file);
+
 	std::ifstream in_map(map_file.c_str(), std::ifstream::in);
-	if (in_map.fail())
+	if (not in_map.is_open())
 	{
 		throw std::runtime_error("map file " + map_file + " does not exist");
 	}
@@ -31,6 +34,9 @@ void Map::loadMap(std::string const &map_file)
 		_map_waypoints_xy.push_back(p);
 		_map_waypoints_frenet.push_back(fmp);
 	}
+	assert(_map_waypoints_xy.size() && "Map contains zero waypoints?");
+
+	LOGGER->info(".. map loaded with {0:d} waypoints", _map_waypoints_xy.size());
 }
 
 size_t Map::closestWaypoint(Point const &p) const
