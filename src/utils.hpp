@@ -8,14 +8,12 @@
 
 #define LOGGER spdlog::get("console")
 
+static double const SECONDS_PER_SAMPLING = 0.02; // s
 using Point = Eigen::Vector2d;
-using Obstacles = std::vector<std::vector<double>>;
 
 struct Path : public std::vector<Point>
 {
-    Path() : std::vector<Point>(0)
-    {
-    }
+    Path() : std::vector<Point>(0) {}
 
     Path(std::vector<double> const &x_components, std::vector<double> const &y_components) : std::vector<Point>(x_components.size())
     {
@@ -40,12 +38,18 @@ struct Path : public std::vector<Point>
     }
 };
 
-struct FrenetMapPoint
+struct BehaviorState
 {
-    FrenetMapPoint() : FrenetMapPoint(0, Point::Zero()){};
-    FrenetMapPoint(double s, Point const &d) : s(s), dVector(d){};
-    double s;
-    Point dVector;
+    enum Maneuver
+    {
+        KL,
+        LCL,
+        LCR
+    };
+    int wanted_lane{1};
+    int current_lane{1};
+    double wanted_speed{0};
+    Maneuver maneuver{Maneuver::KL};
 };
 
 struct FrenetPoint
@@ -54,6 +58,24 @@ struct FrenetPoint
     FrenetPoint(double s, double d) : s(s), d(d){};
     double s;
     double d;
+};
+
+struct FrenetMapPoint
+{
+    FrenetMapPoint() : FrenetMapPoint(0, Point::Zero()){};
+    FrenetMapPoint(double s, Point const &d) : s(s), dVector(d){};
+    double s;
+    Point dVector;
+};
+
+struct CarState
+{
+    CarState(Point p, double yaw, FrenetPoint fp, double v) : position(p), yaw(yaw), position_frenet(fp), speed(v){};
+    Point position;
+    FrenetPoint position_frenet;
+    double yaw;
+    double speed;
+    int lane;
 };
 
 inline double deg2rad(double x)

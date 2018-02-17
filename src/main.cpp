@@ -1,5 +1,6 @@
 #include "Behavior.h"
 #include "Map.h"
+#include "Obstacles.h"
 
 #include "json.hpp"
 #include "spdlog/spdlog.h"
@@ -71,20 +72,21 @@ int main()
           double car_speed = j[1]["speed"];
 
           // Previous path data given to the Planner
-          auto previous_path_x = j[1]["previous_path_x"];
-          auto previous_path_y = j[1]["previous_path_y"];
+          std::vector<double> previous_path_x = j[1]["previous_path_x"];
+          std::vector<double> previous_path_y = j[1]["previous_path_y"];
           // Previous path's end s and d values
           double end_path_s = j[1]["end_path_s"];
           double end_path_d = j[1]["end_path_d"];
 
           // Sensor Fusion Data, a list of all other cars on the same side of the road.
-          auto sensor_fusion = j[1]["sensor_fusion"];
+          std::vector<std::vector<double>> sensor_fusion = j[1]["sensor_fusion"];
 
           json msgJson;
 
           Path previous_path(previous_path_x, previous_path_y);
           CarState cs(Point(car_x, car_y), deg2rad(car_yaw), FrenetPoint(car_s, car_d), car_speed);
-          Path new_path = behavior.plan(cs, previous_path, FrenetPoint(end_path_s, end_path_d), sensor_fusion);
+          Obstacles obstacles(sensor_fusion);
+          Path new_path = behavior.plan(cs, previous_path, FrenetPoint(end_path_s, end_path_d), obstacles);
 
           // convert the path back and send it
           std::vector<double> next_x_vals;

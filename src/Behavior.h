@@ -1,19 +1,9 @@
 #pragma once
 
-#include "utils.hpp"
 #include "Map.h"
-
-#include <tuple>
-#include <vector>
-
-struct CarState
-{
-  CarState(Point p, double yaw, FrenetPoint fp, double v) : position(p), yaw(yaw), position_frenet(fp), speed(v){};
-  Point position;
-  FrenetPoint position_frenet;
-  double yaw;
-  double speed;
-};
+#include "PathPlanner.h"
+#include "Obstacles.h"
+#include "utils.hpp"
 
 class Behavior
 {
@@ -22,5 +12,10 @@ public:
   Path plan(CarState const &cs, Path const &previous_path, FrenetPoint end_point_frenet, Obstacles const &obstacles);
 
 protected:
+  std::vector<BehaviorState> getPossibleManeuvers();
+  double calculateCosts(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles);
+
+  PathPlanner _path_planner;
   Map const &_map;
+  BehaviorState _state;
 };

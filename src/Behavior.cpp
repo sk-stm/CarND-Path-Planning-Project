@@ -1,44 +1,64 @@
 #include "Behavior.h"
 
-#include "Eigen-3.3/Eigen/Geometry"
-#include "utils.hpp"
-#include "spline.h"
+#include "costs.h"
+#include <functional>
 
-#include <cmath>
-
-Behavior::Behavior(Map const &map) : _map(map)
+Behavior::Behavior(Map const &map)
+    : _map(map), _path_planner(map)
 {
+    // initial state (defined by the simulator)
+    _state.current_lane = 1;
+    _state.wanted_lane = _state.current_lane;
+    _state.wanted_speed = Map::MAX_LEGAL_SPEED;
+    _state.maneuver = BehaviorState::KL;
 }
 
 Path Behavior::plan(CarState const &cs, Path const &previous_path, FrenetPoint end_point_frenet, Obstacles const &obstacles)
 {
-    static double const SECONDS_PER_SAMPLING = 0.02; // s
-    static double const MAX_LEGAL_SPEED = 22;        // m/s
+    using EvalTuple = std::tuple<BehaviorState, Path, double>;
 
-    static int lane = 1;
-    std::pair<double, double> our_lane_d_range = std::make_pair(Map::LANE_WIDTH * lane, Map::LANE_WIDTH * lane + Map::LANE_WIDTH);
+    // find possible successor states
+    auto possible_maneuvers = getPossibleManeuvers();
+    assert(not possible_maneuvers.empty());
 
-    static double wanted_speed = cs.speed;
+    // generate paths for each possible successor state and evaluate it
+    std::vector<EvalTuple> evaluated_maneuvers;
+    for (auto const &m : possible_maneuvers)
+    {
+        auto path = _path_planner.plan(cs, previous_path, m);
+        auto cost = calculateCosts(cs, m, path, obstacles);
+        
+        evaluated_maneuvers.emplace_back(std::move(m), std::move(path), cost);
+    }
+
+    // find the minimal cost maneuver
+    std::sort(evaluated_maneuvers.begin(), evaluated_maneuvers.end(),  [](EvalTuple const & a, EvalTuple const & b) -> bool
+    { 
+        return std::get<2>(a) < std::get<2>(b);
+    });
+
+    // execute and save maneuver
+    auto const & best_maneuver = evaluated_maneuvers[0];
+    _state = std::get<0>(best_maneuver);
+
+
+    // set speed
+    std::pair<double, double> our_lane_d_range = std::make_pair(Map::LANE_WIDTH * _state.current_lane, Map::LANE_WIDTH * _state.current_lane + Map::LANE_WIDTH);
     bool is_obst_ahead_too_close = false;
 
-    // obstacle stuff
-    for (auto const &obst : obstacles)
+
+    for (auto obst : obstacles)
     {
-        double const obst_d = obst[6];
-        bool const is_obst_on_my_lane = (obst_d >= our_lane_d_range.first) and (obst_d < our_lane_d_range.second);
+        bool const is_obst_on_my_lane = (obst.d >= our_lane_d_range.first) and (obst.d < our_lane_d_range.second);
 
         if (is_obst_on_my_lane)
         {
-            Eigen::Vector2d const obst_speed_vec(obst[3], obst[4]);
-            double const obst_speed = obst_speed_vec.norm();
-            double obst_s = obst[5];
-
             // walkthrough magic:
-            obst_s += (double)previous_path.size() * SECONDS_PER_SAMPLING * obst_speed;
+            obst.s += (double)previous_path.size() * SECONDS_PER_SAMPLING * obst.speed;
 
             double const s_walkthrough_magic = (previous_path.empty()) ? cs.position_frenet.s : end_point_frenet.s;
             double const distance_walkthrough_magic = 30;
-            is_obst_ahead_too_close = (obst_s > s_walkthrough_magic) and (obst_s < s_walkthrough_magic + distance_walkthrough_magic);
+            is_obst_ahead_too_close = (obst.s > s_walkthrough_magic) and (obst.s < s_walkthrough_magic + distance_walkthrough_magic);
 
             if (is_obst_ahead_too_close)
             {
@@ -49,117 +69,63 @@ Path Behavior::plan(CarState const &cs, Path const &previous_path, FrenetPoint e
 
     if (is_obst_ahead_too_close)
     {
-        wanted_speed -= 0.44704;
-
-        if (lane == 2)
-        {
-            // LCL
-            lane = 1;
-        }
-        else if (lane == 1)
-        {
-            // LCL
-            lane = 0;
-        }
-        else if (lane == 0)
-        {
-            // LCR
-            lane = 1;
-        }
+        _state.wanted_speed -= 0.44704;
     }
     else
     {
-        wanted_speed += 0.44704;
+        _state.wanted_speed += 0.44704;
     }
 
-    if (wanted_speed > MAX_LEGAL_SPEED)
+    _state.wanted_speed = std::clamp(_state.wanted_speed, 0., Map::MAX_LEGAL_SPEED);
+
+
+    return std::get<1>(best_maneuver);;
+}
+
+std::vector<BehaviorState> Behavior::getPossibleManeuvers()
+{
+    std::vector<BehaviorState> possibleManeuvers;
+
+    if (_state.maneuver == BehaviorState::KL)
     {
-        wanted_speed = MAX_LEGAL_SPEED;
+        BehaviorState s = _state;
+        s.maneuver = BehaviorState::KL;
+        possibleManeuvers.push_back(s);
+        s.maneuver = BehaviorState::LCL;
+        possibleManeuvers.push_back(s);
+        s.maneuver = BehaviorState::LCR;
+        possibleManeuvers.push_back(s);
     }
-    else if (wanted_speed < 0)
+    else if (_state.maneuver == BehaviorState::LCL)
     {
-        wanted_speed = 0;
+        BehaviorState s = _state;
+        s.maneuver = BehaviorState::KL;
+        possibleManeuvers.push_back(s);
     }
-
-    Point ref_point;
-    double ref_yaw;
-    Path waypoint_path;
-
-    // if previous path is almost empty, use car state as reference state
-    if (previous_path.size() < 2)
+    else if (_state.maneuver == BehaviorState::LCR)
     {
-        Point prev_car = cs.position - Point(cos(cs.yaw), sin(cs.yaw));
-        waypoint_path.push_back(prev_car);
-        waypoint_path.push_back(cs.position);
-
-        ref_point = cs.position;
-        ref_yaw = cs.yaw;
+        BehaviorState s = _state;
+        s.maneuver = BehaviorState::KL;
+        possibleManeuvers.push_back(s);
     }
-    // use previous path's end-point as reference state
-    else
+
+    return possibleManeuvers;
+}
+
+double Behavior::calculateCosts(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles)
+{
+    static const double EFFICIENCY_COST{1};
+    double cost = 0;
+
+    std::vector<std::function<float(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles)>> cf_list = {inefficiency_cost};
+    std::vector<double> weight_list = {EFFICIENCY_COST};
+
+    for (int i = 0; i < cf_list.size(); i++)
     {
-        Point prev_ref = previous_path[previous_path.size() - 2];
-        Point ref = previous_path[previous_path.size() - 1];
-        Point ref_dir = ref - prev_ref;
-
-        waypoint_path.push_back(prev_ref);
-        waypoint_path.push_back(ref);
-
-        ref_point = ref;
-        ref_yaw = atan2(ref_dir[1], ref_dir[0]);
+        double new_cost = cf_list[i](cs, s, path, obstacles);
+        new_cost = std::clamp(new_cost, 0.0, 1.0);
+        cost += weight_list[i] *  new_cost;
     }
 
-    // in Frenet, add evenly 30m spaced points ahead of the starting reference
-    for (double distance : {30., 60., 90.})
-    {
-        FrenetPoint ref_point_frenet = _map.toFrenet(ref_point, ref_yaw);
-        FrenetPoint next_point_frenet(ref_point_frenet.s + distance, 2 + 4 * lane);
-        Point next_point = _map.toCartesian(next_point_frenet);
-        waypoint_path.push_back(next_point);
-    }
-
-    // switch to vehicle-centered reference frame
-    Eigen::Affine2d vehicle_map_transform(Eigen::Translation2d(ref_point) * Eigen::Rotation2Dd(ref_yaw));
-    for (Point &p : waypoint_path)
-    {
-        p = vehicle_map_transform.inverse() * p;
-    }
-
-    // setup the cubic spline from waypoint_path
-    std::vector<double> path_x, path_y;
-    std::tie(path_x, path_y) = waypoint_path.split();
-    tk::spline spline;
-    spline.set_points(path_x, path_y);
-
-    // calculate how to break up spline points so that we travel at our desired reference velocity
-    double const target_x = 30;
-    Point const target_point(target_x, spline(target_x));
-    double const target_dist = target_point.norm();
-    double const sampling_distance = target_dist / (SECONDS_PER_SAMPLING * wanted_speed);
-    double const increment = target_point[0] / sampling_distance;
-    double x_addon = 0;
-
-    // pre-fill path with previous path (minus what the car travelled in the meantime)
-    Path path = previous_path;
-
-    // fill up the rest of the path
-    int const points_to_fill_up = 50 - path.size();
-    for (size_t i = 0; i < points_to_fill_up; i++)
-    {
-        double x = x_addon + increment;
-        if (x > path_x.back())
-        {
-            break;
-        }
-
-        double y = spline(x);
-        x_addon = x;
-
-        Point p(x, y);
-        // switch back to map-centered reference frame
-        p = vehicle_map_transform * p;
-        path.push_back(p);
-    }
-
-    return path;
+    return cost;
 }

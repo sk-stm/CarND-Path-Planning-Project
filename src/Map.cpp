@@ -151,3 +151,25 @@ Point Map::toCartesian(FrenetPoint fp) const
 
 	return p;
 }
+
+int Map::getLeftLaneOf(int idx)
+{
+	assert(idx >= 0 and idx < NUM_LANES);
+	if (idx - 1 < 0)
+	{
+		return idx;
+	}
+
+	return idx - 1;
+}
+
+int Map::getRightLaneOf(int idx)
+{
+	assert(idx >= 0 and idx < NUM_LANES);
+	if (idx + 1 >= NUM_LANES)
+	{
+		return idx;
+	}
+
+	return idx + 1;
+}
