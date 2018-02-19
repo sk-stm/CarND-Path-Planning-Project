@@ -16,10 +16,14 @@ Behavior::Behavior(Map const &map)
 Path Behavior::plan(CarState const &cs, Path const &previous_path, FrenetPoint end_point_frenet, Obstacles const &obstacles)
 {
     using EvalTuple = std::tuple<BehaviorState, Path, double>;
+    // update current lane
+    int const new_current_lane = std::floor(cs.position_frenet.d / Map::LANE_WIDTH);
+    _state.current_lane = new_current_lane;
 
     // find possible successor states
     auto possible_maneuvers = getPossibleManeuvers();
     assert(not possible_maneuvers.empty());
+    LOGGER->info("Got '{}' possible maneuvers", possible_maneuvers.size());
 
     // generate paths for each possible successor state and evaluate it
     std::vector<EvalTuple> evaluated_maneuvers;
@@ -27,25 +31,24 @@ Path Behavior::plan(CarState const &cs, Path const &previous_path, FrenetPoint e
     {
         auto path = _path_planner.plan(cs, previous_path, m);
         auto cost = calculateCosts(cs, m, path, obstacles);
-        
+
         evaluated_maneuvers.emplace_back(std::move(m), std::move(path), cost);
+
+        LOGGER->info("Evaluated possible manuever '{}' with cost {}", m.to_string(), cost);
     }
 
     // find the minimal cost maneuver
-    std::sort(evaluated_maneuvers.begin(), evaluated_maneuvers.end(),  [](EvalTuple const & a, EvalTuple const & b) -> bool
-    { 
+    std::sort(evaluated_maneuvers.begin(), evaluated_maneuvers.end(), [](EvalTuple const &a, EvalTuple const &b) -> bool {
         return std::get<2>(a) < std::get<2>(b);
     });
 
     // execute and save maneuver
-    auto const & best_maneuver = evaluated_maneuvers[0];
+    auto const &best_maneuver = evaluated_maneuvers[0];
     _state = std::get<0>(best_maneuver);
-
 
     // set speed
     std::pair<double, double> our_lane_d_range = std::make_pair(Map::LANE_WIDTH * _state.current_lane, Map::LANE_WIDTH * _state.current_lane + Map::LANE_WIDTH);
     bool is_obst_ahead_too_close = false;
-
 
     for (auto obst : obstacles)
     {
@@ -78,8 +81,7 @@ Path Behavior::plan(CarState const &cs, Path const &previous_path, FrenetPoint e
 
     _state.wanted_speed = std::clamp(_state.wanted_speed, 0., Map::MAX_LEGAL_SPEED);
 
-
-    return std::get<1>(best_maneuver);;
+    return std::get<1>(best_maneuver);
 }
 
 std::vector<BehaviorState> Behavior::getPossibleManeuvers()
@@ -89,12 +91,26 @@ std::vector<BehaviorState> Behavior::getPossibleManeuvers()
     if (_state.maneuver == BehaviorState::KL)
     {
         BehaviorState s = _state;
+        s.current_lane = _state.current_lane;
+        s.wanted_lane = _state.current_lane;
         s.maneuver = BehaviorState::KL;
         possibleManeuvers.push_back(s);
-        s.maneuver = BehaviorState::LCL;
-        possibleManeuvers.push_back(s);
-        s.maneuver = BehaviorState::LCR;
-        possibleManeuvers.push_back(s);
+
+        size_t left_lane = _map.getLeftLaneOf(_state.current_lane);
+        if (left_lane != _state.current_lane)
+        {
+            s.maneuver = BehaviorState::LCL;
+            s.wanted_lane = left_lane;
+            possibleManeuvers.push_back(s);
+        }
+
+        size_t right_lane = _map.getRightLaneOf(_state.current_lane);
+        if (right_lane != _state.current_lane)
+        {
+            s.maneuver = BehaviorState::LCR;
+            s.wanted_lane = right_lane;
+            possibleManeuvers.push_back(s);
+        }
     }
     else if (_state.maneuver == BehaviorState::LCL)
     {
@@ -114,17 +130,18 @@ std::vector<BehaviorState> Behavior::getPossibleManeuvers()
 
 double Behavior::calculateCosts(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles)
 {
-    static const double EFFICIENCY_COST{1};
+    static const double INEFFICIENCY_WEIGHT{1};
+    static const double SAFETY_WEIGHT{1};
     double cost = 0;
 
-    std::vector<std::function<float(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles)>> cf_list = {inefficiency_cost};
-    std::vector<double> weight_list = {EFFICIENCY_COST};
+    std::vector<std::function<float(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles)>> cf_list = {inefficiency_cost, safety_cost};
+    std::vector<double> weight_list = {INEFFICIENCY_WEIGHT, SAFETY_WEIGHT};
 
     for (int i = 0; i < cf_list.size(); i++)
     {
         double new_cost = cf_list[i](cs, s, path, obstacles);
         new_cost = std::clamp(new_cost, 0.0, 1.0);
-        cost += weight_list[i] *  new_cost;
+        cost += weight_list[i] * new_cost;
     }
 
     return cost;

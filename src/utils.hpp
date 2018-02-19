@@ -50,6 +50,19 @@ struct BehaviorState
     int current_lane{1};
     double wanted_speed{0};
     Maneuver maneuver{Maneuver::KL};
+
+    std::string to_string() const
+    {
+        switch (maneuver)
+        {
+        case KL:
+            return "KL";
+        case LCL:
+            return "LCL";
+        case LCR:
+            return "LCR";
+        }
+    };
 };
 
 struct FrenetPoint

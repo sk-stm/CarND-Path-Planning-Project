@@ -27,6 +27,7 @@ class Obstacles : public std::vector<Obstacle>
             if (lane < 0 or lane >= Map::NUM_LANES)
             {
                 // obstacle is somewhere outside the map?
+                LOGGER->warn("there is an obstacle outside the map?");
                 continue;
             }
 

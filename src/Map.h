@@ -15,8 +15,8 @@ public:
   size_t nextWaypoint(Point const &p, double theta) const;
   FrenetPoint toFrenet(Point const &p, double theta) const;
   Point toCartesian(FrenetPoint fp) const;
-  int getLeftLaneOf(int idx);
-  int getRightLaneOf(int idx);
+  int getLeftLaneOf(int idx) const;
+  int getRightLaneOf(int idx) const;
 
   static double constexpr LANE_WIDTH{4.};
   static double constexpr LANE_WIDTH_HALF{LANE_WIDTH / 2.};
