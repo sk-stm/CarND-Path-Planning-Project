@@ -5,12 +5,11 @@
 
 #include "Eigen-3.3/Eigen/Core"
 
-double inefficiency_cost(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles)
+double inefficiency_cost(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles, Map const &map)
 {
-    static double const LOOKBACK_DISTANCE = 10.;
+    static double const LOOKBACK_DISTANCE = 20.;
     static double const MAX_DISTANCE = 150.;
-    std::vector<double> obst_speeds;
-    std::vector<double> obst_weights;
+    double min_speed = std::numeric_limits<double>::max();
 
     for (auto const &obst : obstacles)
     {
@@ -18,63 +17,77 @@ double inefficiency_cost(CarState const &cs, BehaviorState const &s, Path const 
         {
             // is obstacle ahead of us or besides us?
             double distance = obst.s - cs.position_frenet.s;
+            map.normalizeRelativeStation(distance);
 
-            if (distance < MAX_DISTANCE and distance > -LOOKBACK_DISTANCE)
+            if (distance < MAX_DISTANCE and distance > -LOOKBACK_DISTANCE and obst.speed < min_speed)
             {
-                obst_speeds.push_back(obst.speed);
-                obst_weights.push_back(1. - (distance + LOOKBACK_DISTANCE) / (MAX_DISTANCE + LOOKBACK_DISTANCE));
+                min_speed = obst.speed;
             }
         }
     }
-
-    double average_weighted_speed;
-
-    if (obst_speeds.size() == 0)
-    {
-        average_weighted_speed = Map::MAX_LEGAL_SPEED;
-    }
-    else
-    {
-        Eigen::VectorXd speeds = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(obst_speeds.data(), obst_speeds.size());
-        Eigen::VectorXd weights = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(obst_weights.data(), obst_weights.size());
-        weights = weights / weights.sum();
-        average_weighted_speed = speeds.dot(weights);
-    }
-
-    assert(average_weighted_speed >= 0 and average_weighted_speed <= Map::MAX_LEGAL_SPEED);
-
-    double const cost = (Map::MAX_LEGAL_SPEED - average_weighted_speed) / Map::MAX_LEGAL_SPEED;
+    double const max_speed = std::max(Map::MAX_LEGAL_SPEED, min_speed);
+    double const cost = (max_speed - min_speed) / max_speed;
     return cost;
 }
 
-double safety_cost(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles)
+double safety_cost(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles, Map const &map)
 {
-    double const MIN_CLEARANCE_AHEAD = 40; //m
-    double const MIN_CLEARANCE_BACK = 30;
+    // keeping the lane should always be safe
+    if (s.maneuver == BehaviorState::KL)
+    {
+        return 0.;
+    }
 
-    double shortest_dist_back = std::numeric_limits<double>::max();
-    double shortest_dist_ahead = std::numeric_limits<double>::max();
+    double const MIN_CONSIDERATION_DISTANCE = 50; //m
+    double const MIN_CLEARANCE_AHEAD = 20;        //m
+    double const MIN_CLEARANCE_BACK = 10;         //m
+
+    double min_distance_abs = std::numeric_limits<double>::max();
+    double min_distance_signed = 0;
 
     for (auto const &obst : obstacles)
     {
         if (obst.lane == s.wanted_lane)
         {
-            double station_distance = abs(obst.s - cs.position_frenet.s);
-            // is obstacle ahead of us?
-            if (obst.s >= cs.position_frenet.s && station_distance < shortest_dist_ahead)
+            double station_distance = obst.s - cs.position_frenet.s;
+            map.normalizeRelativeStation(station_distance);
+            double abs_distance = std::abs(station_distance);
+
+            if (abs_distance < min_distance_abs)
             {
-                shortest_dist_ahead = station_distance;
-            }
-            else if (obst.s < cs.position_frenet.s && station_distance < shortest_dist_back)
-            {
-                shortest_dist_back = station_distance;
+                min_distance_abs = abs_distance;
+                min_distance_signed = station_distance;
             }
         }
     }
 
-    double const front_clearance_cost = ((tanh(-(shortest_dist_ahead - MIN_CLEARANCE_AHEAD) / (0.5 * MIN_CLEARANCE_AHEAD))) + 1.) / 2.;
-    double const back_clearance_cost = ((tanh(-(shortest_dist_back - MIN_CLEARANCE_BACK) / (0.5 * MIN_CLEARANCE_BACK))) + 1.) / 2.;
-    double const cost = std::min(front_clearance_cost, back_clearance_cost);
+    // no obstacle in sight?
+    if (min_distance_abs > MIN_CONSIDERATION_DISTANCE)
+    {
+        return 0.;
+    }
+
+    // obstacle within critical distance? assign max cost
+    if (min_distance_signed > -MIN_CLEARANCE_BACK and min_distance_signed < MIN_CLEARANCE_AHEAD)
+    {
+        return 1.;
+    }
+
+    // interpolate within bounds
+    double const bound = min_distance_signed < 0 ? MIN_CLEARANCE_BACK : MIN_CLEARANCE_AHEAD;
+    assert(bound < MIN_CONSIDERATION_DISTANCE);
+
+    double relative_distance = (min_distance_abs - bound) / (MIN_CONSIDERATION_DISTANCE - bound);
+    //double cost = 1.0 - (min_distance_abs - bound) / (MIN_CONSIDERATION_DISTANCE - bound);
+    double cost = -std::pow(relative_distance, 2.) + 1;
+
+    // cosine interpolation
+    /*double y1 = 1;
+    double y2 = 0;
+    double mu = (min_distance_abs - bound) / (MIN_CONSIDERATION_DISTANCE - bound);
+    double mu2 = (1 - std::cos(mu * M_PI)) / 2;
+    double cost = (y1 * (1 - mu2) + y2 * mu2);
+    */
 
     return cost;
 }

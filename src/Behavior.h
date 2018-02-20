@@ -1,9 +1,10 @@
 #pragma once
 
 #include "Map.h"
-#include "PathPlanner.h"
 #include "Obstacles.h"
+#include "PathPlanner.h"
 #include "utils.hpp"
+#include "Visualizer.h"
 
 class Behavior
 {
@@ -18,4 +19,5 @@ protected:
   PathPlanner _path_planner;
   Map const &_map;
   BehaviorState _state;
+  Visualizer _visualizer;
 };

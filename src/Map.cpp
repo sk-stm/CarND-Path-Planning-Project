@@ -10,6 +10,18 @@ Map::Map(std::string const &map_file, double max_s, Point map_center)
 	loadMap(map_file);
 }
 
+void Map::normalizeRelativeStation(double &station) const
+{
+	if (station > _max_s / 2)
+	{
+		station -= _max_s;
+	}
+	else if (station < -_max_s / 2)
+	{
+		station += _max_s;
+	}
+}
+
 void Map::loadMap(std::string const &map_file)
 {
 	LOGGER->info("Loading map from '{}' ..", map_file);

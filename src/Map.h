@@ -17,11 +17,13 @@ public:
   Point toCartesian(FrenetPoint fp) const;
   int getLeftLaneOf(int idx) const;
   int getRightLaneOf(int idx) const;
+  void normalizeRelativeStation(double &station) const;
 
   static double constexpr LANE_WIDTH{4.};
   static double constexpr LANE_WIDTH_HALF{LANE_WIDTH / 2.};
   static size_t constexpr NUM_LANES{3};
   static double constexpr MAX_LEGAL_SPEED{22.};
+  static double constexpr MAX_STATION{6945.554};
 
 protected:
   void loadMap(std::string const &mapFile);

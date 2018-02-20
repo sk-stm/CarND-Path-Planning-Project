@@ -42,6 +42,8 @@ Path Behavior::plan(CarState const &cs, Path const &previous_path, FrenetPoint e
         return std::get<2>(a) < std::get<2>(b);
     });
 
+    _visualizer.setData(evaluated_maneuvers);
+
     // execute and save maneuver
     auto const &best_maneuver = evaluated_maneuvers[0];
     _state = std::get<0>(best_maneuver);
@@ -135,14 +137,19 @@ double Behavior::calculateCosts(CarState const &cs, BehaviorState const &s, Path
     double cost = 0;
 
     std::vector<std::function<float(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles)>> cf_list = {inefficiency_cost, safety_cost};
+
     std::vector<double> weight_list = {INEFFICIENCY_WEIGHT, SAFETY_WEIGHT};
+    double weight_sum = 0;
 
     for (int i = 0; i < cf_list.size(); i++)
     {
-        double new_cost = cf_list[i](cs, s, path, obstacles);
-        new_cost = std::clamp(new_cost, 0.0, 1.0);
+        double new_cost = cf_list[i](cs, s, path, obstacles, _map);
+        assert(new_cost >= 0. and new_cost <= 1.);
         cost += weight_list[i] * new_cost;
+        weight_sum += weight_list[i];
     }
+
+    cost /= weight_sum;
 
     return cost;
 }
