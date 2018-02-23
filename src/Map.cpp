@@ -1,5 +1,7 @@
 #include "Map.h"
 
+#include "spline.h"
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -8,6 +10,7 @@ Map::Map(std::string const &map_file, double max_s, Point map_center)
 	: _max_s(max_s), _map_center(map_center)
 {
 	loadMap(map_file);
+	smoothMap();
 }
 
 void Map::normalizeRelativeStation(double &station) const
@@ -49,6 +52,55 @@ void Map::loadMap(std::string const &map_file)
 	assert(_map_waypoints_xy.size() && "Map contains zero waypoints?");
 
 	LOGGER->info(".. map loaded with {0:d} waypoints", _map_waypoints_xy.size());
+}
+
+void Map::smoothMap()
+{
+	LOGGER->info("Smoothing waypoints ..");
+	std::vector<double> path_x, path_y, path_s, path_d0, path_d1;
+
+	assert(not _map_waypoints_xy.empty());
+	assert(_map_waypoints_xy.size() == _map_waypoints_frenet.size());
+
+	// split data
+	for (size_t i = 0; i < _map_waypoints_xy.size(); i++)
+	{
+		path_x.push_back(_map_waypoints_xy[i][0]);
+		path_y.push_back(_map_waypoints_xy[i][1]);
+		path_s.push_back(_map_waypoints_frenet[i].s);
+		path_d0.push_back(_map_waypoints_frenet[i].dVector[0]);
+		path_d1.push_back(_map_waypoints_frenet[i].dVector[1]);
+	}
+
+	// clear waypoints
+	_map_waypoints_xy.clear();
+	_map_waypoints_frenet.clear();
+
+	// initialize splines
+	tk::spline spline_x, spline_y, spline_d0, spline_d1;
+	spline_x.set_points(path_s, path_x);
+	spline_y.set_points(path_s, path_y);
+	spline_d0.set_points(path_s, path_d0);
+	spline_d1.set_points(path_s, path_d1);
+
+	// sample splines and re-fill waypoints
+	for (double s = 0; s < MAX_STATION; s += 1.0)
+	{
+		Point p;
+		FrenetMapPoint fmp;
+
+		p[0] = spline_x(s);
+		p[1] = spline_y(s);
+
+		fmp.s = s;
+		fmp.dVector[0] = spline_d0(s);
+		fmp.dVector[1] = spline_d1(s);
+
+		_map_waypoints_xy.push_back(p);
+		_map_waypoints_frenet.push_back(fmp);
+	}
+
+	LOGGER->info(".. map smoothed with {0:d} waypoints", _map_waypoints_xy.size());
 }
 
 size_t Map::closestWaypoint(Point const &p) const

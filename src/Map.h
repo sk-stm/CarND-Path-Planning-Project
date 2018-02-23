@@ -27,6 +27,7 @@ public:
 
 protected:
   void loadMap(std::string const &mapFile);
+  void smoothMap();
 
   // The max s value before wrapping around the track back to 0
   double const _max_s;

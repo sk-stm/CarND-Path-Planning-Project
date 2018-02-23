@@ -9,7 +9,7 @@ Behavior::Behavior(Map const &map)
     // initial state (defined by the simulator)
     _state.current_lane = 1;
     _state.wanted_lane = _state.current_lane;
-    _state.wanted_speed = Map::MAX_LEGAL_SPEED;
+    _state.wanted_speed = 10;
     _state.maneuver = BehaviorState::KL;
 }
 
@@ -19,6 +19,7 @@ Path Behavior::plan(CarState const &cs, Path const &previous_path, FrenetPoint e
     // update current lane
     int const new_current_lane = std::floor(cs.position_frenet.d / Map::LANE_WIDTH);
     _state.current_lane = new_current_lane;
+    LOGGER->debug("Current lane is {}", _state.current_lane);
 
     // find possible successor states
     auto possible_maneuvers = getPossibleManeuvers();
@@ -42,7 +43,8 @@ Path Behavior::plan(CarState const &cs, Path const &previous_path, FrenetPoint e
         return std::get<2>(a) < std::get<2>(b);
     });
 
-    _visualizer.setData(evaluated_maneuvers);
+    _visualizer.setCostData(evaluated_maneuvers);
+    _visualizer.setDebugData(new_current_lane);
 
     // execute and save maneuver
     auto const &best_maneuver = evaluated_maneuvers[0];
@@ -88,7 +90,7 @@ Path Behavior::plan(CarState const &cs, Path const &previous_path, FrenetPoint e
 
 std::vector<BehaviorState> Behavior::getPossibleManeuvers()
 {
-    std::vector<BehaviorState> possibleManeuvers;
+    std::vector<BehaviorState> possible_maneuvers;
 
     if (_state.maneuver == BehaviorState::KL)
     {
@@ -96,14 +98,14 @@ std::vector<BehaviorState> Behavior::getPossibleManeuvers()
         s.current_lane = _state.current_lane;
         s.wanted_lane = _state.current_lane;
         s.maneuver = BehaviorState::KL;
-        possibleManeuvers.push_back(s);
+        possible_maneuvers.push_back(s);
 
         size_t left_lane = _map.getLeftLaneOf(_state.current_lane);
         if (left_lane != _state.current_lane)
         {
             s.maneuver = BehaviorState::LCL;
             s.wanted_lane = left_lane;
-            possibleManeuvers.push_back(s);
+            possible_maneuvers.push_back(s);
         }
 
         size_t right_lane = _map.getRightLaneOf(_state.current_lane);
@@ -111,45 +113,54 @@ std::vector<BehaviorState> Behavior::getPossibleManeuvers()
         {
             s.maneuver = BehaviorState::LCR;
             s.wanted_lane = right_lane;
-            possibleManeuvers.push_back(s);
+            possible_maneuvers.push_back(s);
         }
     }
     else if (_state.maneuver == BehaviorState::LCL)
     {
         BehaviorState s = _state;
         s.maneuver = BehaviorState::KL;
-        possibleManeuvers.push_back(s);
+        possible_maneuvers.push_back(s);
     }
     else if (_state.maneuver == BehaviorState::LCR)
     {
         BehaviorState s = _state;
         s.maneuver = BehaviorState::KL;
-        possibleManeuvers.push_back(s);
+        possible_maneuvers.push_back(s);
     }
 
-    return possibleManeuvers;
+    return possible_maneuvers;
 }
 
 double Behavior::calculateCosts(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles)
 {
     static const double INEFFICIENCY_WEIGHT{1};
     static const double SAFETY_WEIGHT{1};
+    static const double RECHTSFAHRGEBOT_WEIGHT{1};
+    static const double MAX_COST{1};
+    static const double FREE_SPACE_AHEAD_WEIGHT{1};
     double cost = 0;
 
-    std::vector<std::function<float(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles)>> cf_list = {inefficiency_cost, safety_cost};
-
-    std::vector<double> weight_list = {INEFFICIENCY_WEIGHT, SAFETY_WEIGHT};
+    std::vector<std::function<float(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles, Map const &map)>> cf_list = {inefficiency_cost, safety_cost, rechtsfahrgebot_cost, free_space_ahead_cost};
+    std::vector<double> weight_list = {INEFFICIENCY_WEIGHT, SAFETY_WEIGHT, RECHTSFAHRGEBOT_WEIGHT, FREE_SPACE_AHEAD_WEIGHT};
     double weight_sum = 0;
 
     for (int i = 0; i < cf_list.size(); i++)
     {
         double new_cost = cf_list[i](cs, s, path, obstacles, _map);
-        assert(new_cost >= 0. and new_cost <= 1.);
+        assert(new_cost >= 0. and new_cost <= MAX_COST);
+
+        // a cost of "1" means per protocoll, we should never do that maneuver (the cost-function prevents it)
+        if (new_cost == MAX_COST)
+        {
+            return MAX_COST;
+        }
         cost += weight_list[i] * new_cost;
         weight_sum += weight_list[i];
     }
 
     cost /= weight_sum;
+    assert(cost >= 0. and cost <= MAX_COST);
 
     return cost;
 }

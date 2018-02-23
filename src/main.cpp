@@ -42,7 +42,7 @@ int main()
 	Behavior behavior(map);
 
 	h.onMessage([&behavior](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-													uWS::OpCode opCode) {
+							uWS::OpCode opCode) {
 		// "42" at the start of the message means there's a websocket message event.
 		// The 4 signifies a websocket message
 		// The 2 signifies a websocket event
@@ -69,7 +69,7 @@ int main()
 					double car_s = j[1]["s"];
 					double car_d = j[1]["d"];
 					double car_yaw = j[1]["yaw"];
-					double car_speed = j[1]["speed"];
+					double car_speed = double(j[1]["speed"]) * 0.44704; // convert units MPH -> m/s;
 
 					// Previous path data given to the Planner
 					std::vector<double> previous_path_x = j[1]["previous_path_x"];
@@ -113,7 +113,7 @@ int main()
 	// program
 	// doesn't compile :-(
 	h.onHttpRequest([](uWS::HttpResponse *res, uWS::HttpRequest req, char *data,
-										 size_t, size_t) {
+					   size_t, size_t) {
 		const std::string s = "<h1>Hello world!</h1>";
 		if (req.getUrl().valueLength == 1)
 		{
@@ -131,7 +131,7 @@ int main()
 	});
 
 	h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code,
-												 char *message, size_t length) {
+						   char *message, size_t length) {
 		ws.close();
 		std::cout << "Disconnected" << std::endl;
 	});

@@ -17,9 +17,9 @@ class Visualizer
     Visualizer()
     {
 
-        data_[BehaviorState::Maneuver::KL] = std::vector<double>();
-        data_[BehaviorState::Maneuver::LCL] = std::vector<double>();
-        data_[BehaviorState::Maneuver::LCR] = std::vector<double>();
+        cost_data_[BehaviorState::Maneuver::KL] = std::vector<double>();
+        cost_data_[BehaviorState::Maneuver::LCL] = std::vector<double>();
+        cost_data_[BehaviorState::Maneuver::LCR] = std::vector<double>();
 
         run_ = true;
 
@@ -44,11 +44,11 @@ class Visualizer
         worker_.join();
     }
 
-    void setData(std::vector<std::tuple<BehaviorState, Path, double>> const &data)
+    void setCostData(std::vector<std::tuple<BehaviorState, Path, double>> const &data)
     {
         std::lock_guard<std::mutex> lock{mutex_};
 
-        for (auto &kv : data_)
+        for (auto &kv : cost_data_)
         {
             bool found = false;
             for (auto maneuver_data : data)
@@ -75,10 +75,22 @@ class Visualizer
         dirty_ = true;
     }
 
+    void setDebugData(double const &d)
+    {
+        std::lock_guard<std::mutex> lock{mutex_};
+        debug_data_.push_back(d);
+
+        while (debug_data_.size() > 150)
+        {
+            debug_data_.erase(debug_data_.begin());
+        }
+    }
+
   private:
     std::mutex mutex_;
     std::thread worker_;
-    std::map<BehaviorState::Maneuver, std::vector<double>> data_;
+    std::map<BehaviorState::Maneuver, std::vector<double>> cost_data_;
+    std::vector<double> debug_data_;
 
     bool dirty_{false};
     bool run_{false};
@@ -86,12 +98,18 @@ class Visualizer
     void plot()
     {
         mutex_.lock();
+        // copy data in order to release lock early
+        auto data = cost_data_;
+        mutex_.unlock();
 
         // clear previous plot
         plt::clf();
+
+        // plot actions and their costs
+        plt::subplot(2, 1, 1);
         plt::xkcd();
         double max_y = 1.1;
-        for (auto &kv : data_)
+        for (auto &kv : data)
         {
             BehaviorState s;
             s.maneuver = kv.first;
@@ -104,7 +122,12 @@ class Visualizer
         plt::ylim(-0.1, max_y);
         plt::legend();
 
-        mutex_.unlock();
+        // debug plot
+        plt::subplot(2, 1, 2);
+        plt::xkcd();
+        plt::named_plot("current lane", debug_data_);
+        plt::title("debug");
+        plt::legend();
 
         plt::pause(0.001);
     };
