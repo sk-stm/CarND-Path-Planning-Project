@@ -7,22 +7,17 @@ Behavior::Behavior(Map const &map)
     : _map(map), _path_planner(map)
 {
     // initial state (defined by the simulator)
-    _state.current_lane = 1;
-    _state.wanted_lane = _state.current_lane;
-    _state.wanted_speed = 10;
+    _state.wanted_lane = 1;
+    _state.wanted_speed = 0.1;
     _state.maneuver = BehaviorState::KL;
 }
 
 Path Behavior::plan(CarState const &cs, Path const &previous_path, FrenetPoint end_point_frenet, Obstacles const &obstacles)
 {
     using EvalTuple = std::tuple<BehaviorState, Path, double>;
-    // update current lane
-    int const new_current_lane = std::floor(cs.position_frenet.d / Map::LANE_WIDTH);
-    _state.current_lane = new_current_lane;
-    LOGGER->debug("Current lane is {}", _state.current_lane);
 
     // find possible successor states
-    auto possible_maneuvers = getPossibleManeuvers();
+    auto possible_maneuvers = getPossibleManeuvers(cs);
     assert(not possible_maneuvers.empty());
     LOGGER->info("Got '{}' possible maneuvers", possible_maneuvers.size());
 
@@ -44,72 +39,76 @@ Path Behavior::plan(CarState const &cs, Path const &previous_path, FrenetPoint e
     });
 
     _visualizer.setCostData(evaluated_maneuvers);
-    _visualizer.setDebugData(new_current_lane);
 
     // execute and save maneuver
     auto const &best_maneuver = evaluated_maneuvers[0];
     _state = std::get<0>(best_maneuver);
 
-    // set speed
-    std::pair<double, double> our_lane_d_range = std::make_pair(Map::LANE_WIDTH * _state.current_lane, Map::LANE_WIDTH * _state.current_lane + Map::LANE_WIDTH);
-    bool is_obst_ahead_too_close = false;
+    // set wanted speed (for next frame)
+    double wanted_speed = calcWantedSpeedAcc(cs, obstacles);
+    _visualizer.setDebugData(wanted_speed);
+    assert(wanted_speed <= Map::MAX_LEGAL_SPEED);
 
-    for (auto obst : obstacles)
-    {
-        bool const is_obst_on_my_lane = (obst.d >= our_lane_d_range.first) and (obst.d < our_lane_d_range.second);
-
-        if (is_obst_on_my_lane)
-        {
-            // walkthrough magic:
-            obst.s += (double)previous_path.size() * SECONDS_PER_SAMPLING * obst.speed;
-
-            double const s_walkthrough_magic = (previous_path.empty()) ? cs.position_frenet.s : end_point_frenet.s;
-            double const distance_walkthrough_magic = 30;
-            is_obst_ahead_too_close = (obst.s > s_walkthrough_magic) and (obst.s < s_walkthrough_magic + distance_walkthrough_magic);
-
-            if (is_obst_ahead_too_close)
-            {
-                break;
-            }
-        }
-    }
-
-    if (is_obst_ahead_too_close)
-    {
-        _state.wanted_speed -= 0.44704;
-    }
-    else
-    {
-        _state.wanted_speed += 0.44704;
-    }
-
-    _state.wanted_speed = std::clamp(_state.wanted_speed, 0., Map::MAX_LEGAL_SPEED);
+    _state.wanted_speed = 0.95 * _state.wanted_speed + 0.05 * wanted_speed;
 
     return std::get<1>(best_maneuver);
 }
 
-std::vector<BehaviorState> Behavior::getPossibleManeuvers()
+double Behavior::calcWantedSpeedAcc(CarState const &cs, Obstacles const &obstacles) const
+{
+    auto closest_obst = obstacles.end();
+    double closest_dist = std::numeric_limits<double>::max();
+
+    for (auto obstIt = obstacles.begin(); obstIt < obstacles.end(); obstIt++)
+    {
+
+        if (obstIt->lane == cs.lane)
+        {
+            double distance = obstIt->s - cs.position_frenet.s;
+
+            if (distance > 0 and distance < closest_dist)
+            {
+                closest_dist = distance;
+                closest_obst = obstIt;
+            }
+        }
+    }
+
+    if (closest_obst == obstacles.end() or closest_dist > 30.)
+    {
+        return Map::MAX_LEGAL_SPEED;
+    }
+
+    if (closest_dist > 20)
+    {
+        return closest_obst->speed;
+    }
+
+    assert(closest_dist >= 0 and closest_dist <= 20);
+    return closest_obst->speed * std::sqrt(closest_dist / 20.);
+}
+
+std::vector<BehaviorState> Behavior::getPossibleManeuvers(CarState const &cs) const
 {
     std::vector<BehaviorState> possible_maneuvers;
 
     if (_state.maneuver == BehaviorState::KL)
     {
         BehaviorState s = _state;
-        s.current_lane = _state.current_lane;
-        s.wanted_lane = _state.current_lane;
+        s.wanted_lane = cs.lane;
         s.maneuver = BehaviorState::KL;
         possible_maneuvers.push_back(s);
 
-        size_t left_lane = _map.getLeftLaneOf(_state.current_lane);
-        if (left_lane != _state.current_lane)
+        size_t left_lane = _map.getLeftLaneOf(cs.lane);
+        if (left_lane != cs.lane)
         {
             s.maneuver = BehaviorState::LCL;
             s.wanted_lane = left_lane;
             possible_maneuvers.push_back(s);
         }
 
-        size_t right_lane = _map.getRightLaneOf(_state.current_lane);
-        if (right_lane != _state.current_lane)
+        size_t right_lane = _map.getRightLaneOf(cs.lane);
+        if (right_lane != cs.lane)
         {
             s.maneuver = BehaviorState::LCR;
             s.wanted_lane = right_lane;

@@ -47,7 +47,6 @@ struct BehaviorState
         LCR
     };
     int wanted_lane{1};
-    int current_lane{1};
     double wanted_speed{0};
     Maneuver maneuver{Maneuver::KL};
 
@@ -83,7 +82,10 @@ struct FrenetMapPoint
 
 struct CarState
 {
-    CarState(Point p, double yaw, FrenetPoint fp, double v) : position(p), yaw(yaw), position_frenet(fp), speed(v){};
+    CarState(Point p, double yaw, FrenetPoint fp, double v, int l) : position(p), yaw(yaw), position_frenet(fp), speed(v), lane(l)
+    {
+        LOGGER->debug("Current carstate: s={:.2f} d={:.2f} yaw={:.2f} l={:d} v={:.2f}", position_frenet.s, position_frenet.d, yaw, lane, speed);
+    }
     Point position;
     FrenetPoint position_frenet;
     double yaw;

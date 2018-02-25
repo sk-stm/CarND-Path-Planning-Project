@@ -18,11 +18,11 @@ link_directories(/usr/local/lib)
 link_directories(/usr/local/opt/openssl/lib)
 link_directories(/usr/local/Cellar/libuv/1.15.0/lib)
 
-endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") 
-
 # uws - I don't want to install this with sudo!
 include_directories(~/Documents/uni.uni/udacity/selfdriving_cars/term_2/projects/_res/uWebSockets/include)
 link_directories(~/Documents/uni.uni/udacity/selfdriving_cars/term_2/projects/_res/uWebSockets/build)
+
+endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") 
 
 add_executable(path_planning ${sources})
 

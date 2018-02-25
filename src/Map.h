@@ -18,6 +18,7 @@ public:
   int getLeftLaneOf(int idx) const;
   int getRightLaneOf(int idx) const;
   void normalizeRelativeStation(double &station) const;
+  int laneOfFrenetD(double d) const;
 
   static double constexpr LANE_WIDTH{4.};
   static double constexpr LANE_WIDTH_HALF{LANE_WIDTH / 2.};

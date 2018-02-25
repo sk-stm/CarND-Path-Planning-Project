@@ -125,7 +125,7 @@ class Visualizer
         // debug plot
         plt::subplot(2, 1, 2);
         plt::xkcd();
-        plt::named_plot("current lane", debug_data_);
+        plt::named_plot("wanted speed", debug_data_);
         plt::title("debug");
         plt::legend();
 

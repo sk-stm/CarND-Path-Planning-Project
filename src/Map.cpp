@@ -25,6 +25,11 @@ void Map::normalizeRelativeStation(double &station) const
 	}
 }
 
+int Map::laneOfFrenetD(double d) const
+{
+	return std::floor(d / LANE_WIDTH);
+}
+
 void Map::loadMap(std::string const &map_file)
 {
 	LOGGER->info("Loading map from '{}' ..", map_file);

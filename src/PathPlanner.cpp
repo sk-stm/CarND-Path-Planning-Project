@@ -44,7 +44,7 @@ Path PathPlanner::plan(CarState const &cs, Path const &previous_path, BehaviorSt
     for (double distance : {30., 60., 90.})
     {
         FrenetPoint ref_point_frenet = _map.toFrenet(ref_point, ref_yaw);
-        FrenetPoint next_point_frenet(ref_point_frenet.s + distance, 2 + 4 * planning_info.wanted_lane);
+        FrenetPoint next_point_frenet(ref_point_frenet.s + distance, Map::LANE_WIDTH_HALF + Map::LANE_WIDTH * planning_info.wanted_lane);
         Point next_point = _map.toCartesian(next_point_frenet);
         waypoint_path.push_back(next_point);
     }

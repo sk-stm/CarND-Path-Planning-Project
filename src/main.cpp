@@ -41,8 +41,7 @@ int main()
 	Map map("../data/highway_map.csv");
 	Behavior behavior(map);
 
-	h.onMessage([&behavior](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-							uWS::OpCode opCode) {
+	h.onMessage([&behavior, &map](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
 		// "42" at the start of the message means there's a websocket message event.
 		// The 4 signifies a websocket message
 		// The 2 signifies a websocket event
@@ -84,8 +83,9 @@ int main()
 					json msgJson;
 
 					Path previous_path(previous_path_x, previous_path_y);
-					CarState cs(Point(car_x, car_y), deg2rad(car_yaw), FrenetPoint(car_s, car_d), car_speed);
-					Obstacles obstacles(sensor_fusion);
+					int lane = map.laneOfFrenetD(car_d);
+					CarState cs(Point(car_x, car_y), deg2rad(car_yaw), FrenetPoint(car_s, car_d), car_speed, lane);
+					Obstacles obstacles(sensor_fusion, map);
 					Path new_path = behavior.plan(cs, previous_path, FrenetPoint(end_path_s, end_path_d), obstacles);
 
 					// convert the path back and send it

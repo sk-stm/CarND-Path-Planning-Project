@@ -13,8 +13,9 @@ public:
   Path plan(CarState const &cs, Path const &previous_path, FrenetPoint end_point_frenet, Obstacles const &obstacles);
 
 protected:
-  std::vector<BehaviorState> getPossibleManeuvers();
+  std::vector<BehaviorState> getPossibleManeuvers(CarState const &cs) const;
   double calculateCosts(CarState const &cs, BehaviorState const &s, Path const &path, Obstacles const &obstacles);
+  double calcWantedSpeedAcc(CarState const &cs, Obstacles const &obstacles) const;
 
   PathPlanner _path_planner;
   Map const &_map;

@@ -18,12 +18,13 @@ struct Obstacle
 class Obstacles : public std::vector<Obstacle>
 {
   public:
-    Obstacles(std::vector<std::vector<double>> const &data)
+    Obstacles(std::vector<std::vector<double>> const &data, Map const &map)
     {
         for (auto const &obst_data : data)
         {
             double const d = obst_data[6];
-            int const lane = std::floor(d / Map::LANE_WIDTH);
+            int const lane = map.laneOfFrenetD(d);
+
             if (lane < 0 or lane >= Map::NUM_LANES)
             {
                 // obstacle is somewhere outside the map?
