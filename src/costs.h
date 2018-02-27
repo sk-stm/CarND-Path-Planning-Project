@@ -114,8 +114,8 @@ double safety_cost(CarState const &cs, BehaviorState const &s, Path const &path,
 
     double const speed_factor = 0.5 + (cs.speed / Map::MAX_LEGAL_SPEED);
     double const MAX_CONSIDERATION_DISTANCE = 30 * speed_factor; //m
-    double const MIN_CLEARANCE_AHEAD = 15 * speed_factor;        //m
-    double const MIN_CLEARANCE_BACK = 10 * speed_factor;         //m
+    double const MIN_CLEARANCE_AHEAD = 12 * speed_factor;        //m
+    double const MIN_CLEARANCE_BACK = 7 * speed_factor;          //m
 
     double min_distance_abs = std::numeric_limits<double>::max();
     double min_distance_signed = 0;

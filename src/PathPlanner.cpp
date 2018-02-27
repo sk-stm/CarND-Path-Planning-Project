@@ -45,6 +45,14 @@ Path PathPlanner::plan(CarState const &cs, Path const &previous_path, BehaviorSt
     {
         FrenetPoint ref_point_frenet = _map.toFrenet(ref_point, ref_yaw);
         FrenetPoint next_point_frenet(ref_point_frenet.s + distance, Map::LANE_WIDTH_HALF + Map::LANE_WIDTH * planning_info.wanted_lane);
+        _map.normalizeStation(next_point_frenet.s);
+
+        // sanity check for debugging
+        if (next_point_frenet.d < 0 or next_point_frenet.d > Map::NUM_LANES * Map::LANE_WIDTH)
+        {
+            throw std::runtime_error("planned point out of map :(");
+        }
+
         Point next_point = _map.toCartesian(next_point_frenet);
         waypoint_path.push_back(next_point);
     }

@@ -25,6 +25,14 @@ void Map::normalizeRelativeStation(double &station) const
 	}
 }
 
+void Map::normalizeStation(double &station) const
+{
+	if (station > _max_s)
+	{
+		station = std::fmod(station, _max_s);
+	}
+}
+
 int Map::laneOfFrenetD(double d) const
 {
 	return std::floor(d / LANE_WIDTH);
@@ -89,7 +97,7 @@ void Map::smoothMap()
 	spline_d1.set_points(path_s, path_d1);
 
 	// sample splines and re-fill waypoints
-	for (double s = 0; s < MAX_STATION; s += 1.0)
+	for (double s = 0; s <= _max_s - 1.; s += 1.0)
 	{
 		Point p;
 		FrenetMapPoint fmp;
@@ -197,6 +205,8 @@ FrenetPoint Map::toFrenet(Point const &p, double theta) const
 // Transform from Frenet s,d coordinates to Cartesian x,y
 Point Map::toCartesian(FrenetPoint fp) const
 {
+	normalizeStation(fp.s);
+
 	int prev_wp = -1;
 
 	while (fp.s > _map_waypoints_frenet[prev_wp + 1].s && (prev_wp < (int)(_map_waypoints_frenet.size() - 1)))

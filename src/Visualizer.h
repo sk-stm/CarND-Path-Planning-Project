@@ -129,6 +129,6 @@ class Visualizer
         plt::title("debug");
         plt::legend();
 
-        plt::pause(0.001);
+        plt::pause(0.05);
     };
 };
